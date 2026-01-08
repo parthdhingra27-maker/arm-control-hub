@@ -1,0 +1,34 @@
+export interface JointAngles {
+  base: number;
+  shoulder: number;
+  elbow: number;
+  wrist: number;
+}
+
+export interface JointConfig {
+  name: string;
+  key: keyof JointAngles;
+  min: number;
+  max: number;
+  unit: string;
+}
+
+export interface RobotMessage {
+  joints: [number, number, number, number];
+}
+
+export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
+
+export const JOINT_CONFIGS: JointConfig[] = [
+  { name: 'Base Rotation', key: 'base', min: -180, max: 180, unit: '°' },
+  { name: 'Shoulder Pitch', key: 'shoulder', min: -30, max: 90, unit: '°' },
+  { name: 'Elbow Pitch', key: 'elbow', min: 0, max: 135, unit: '°' },
+  { name: 'Wrist Rotation', key: 'wrist', min: -180, max: 180, unit: '°' },
+];
+
+export const DEFAULT_JOINT_ANGLES: JointAngles = {
+  base: 0,
+  shoulder: 45,
+  elbow: 45,
+  wrist: 0,
+};
