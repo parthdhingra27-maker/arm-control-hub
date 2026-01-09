@@ -107,14 +107,14 @@ export function Dashboard() {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 container mx-auto px-4 pb-6">
-        <Tabs defaultValue="control" className="h-[calc(100vh-260px)] min-h-[500px]">
-          <TabsList className="mb-4">
+      <div className="flex-1 container mx-auto px-4 pb-6 overflow-hidden">
+        <Tabs defaultValue="control" className="h-full flex flex-col">
+          <TabsList className="mb-4 flex-shrink-0">
             <TabsTrigger value="control">Control</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="control" className="h-[calc(100%-48px)]">
+          <TabsContent value="control" className="flex-1 overflow-hidden">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-full">
               {/* Joint Controls */}
               <JointControlPanel
@@ -132,7 +132,7 @@ export function Dashboard() {
             </div>
           </TabsContent>
 
-          <TabsContent value="settings" className="h-[calc(100%-48px)]">
+          <TabsContent value="settings" className="flex-1 overflow-hidden">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full">
               <SettingsPanel
                 settings={settings}
