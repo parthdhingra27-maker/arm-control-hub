@@ -1,5 +1,7 @@
+import { useState, useEffect, useRef } from 'react';
 import { JointConfig } from '@/types/robot';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Minus, Plus } from 'lucide-react';
 
 interface JointControlProps {
@@ -12,20 +14,71 @@ interface JointControlProps {
 const JOG_AMOUNTS = [-10, -1, 1, 10];
 
 export function JointControl({ config, value, onChange, disabled }: JointControlProps) {
+  const [inputValue, setInputValue] = useState(value.toFixed(1));
+  const [isEditing, setIsEditing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const percentage = ((value - config.min) / (config.max - config.min)) * 100;
+
+  // Sync input when value changes externally (and not editing)
+  useEffect(() => {
+    if (!isEditing) {
+      setInputValue(value.toFixed(1));
+    }
+  }, [value, isEditing]);
 
   const handleJog = (amount: number) => {
     const newValue = Math.max(config.min, Math.min(config.max, value + amount));
     onChange(newValue);
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(e.target.value);
+  };
+
+  const handleInputBlur = () => {
+    setIsEditing(false);
+    const parsed = parseFloat(inputValue);
+    if (!isNaN(parsed)) {
+      const clamped = Math.max(config.min, Math.min(config.max, parsed));
+      onChange(clamped);
+      setInputValue(clamped.toFixed(1));
+    } else {
+      setInputValue(value.toFixed(1));
+    }
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      inputRef.current?.blur();
+    } else if (e.key === 'Escape') {
+      setInputValue(value.toFixed(1));
+      setIsEditing(false);
+      inputRef.current?.blur();
+    }
+  };
+
+  const handleInputFocus = () => {
+    setIsEditing(true);
+    inputRef.current?.select();
+  };
+
   return (
     <div className="p-4 bg-muted/30 rounded-lg border border-border/50 animate-fade-in">
       <div className="flex items-center justify-between mb-3">
         <label className="joint-label">{config.name}</label>
-        <div className="readout">
-          <span className="text-foreground">{value.toFixed(1)}</span>
-          <span className="text-muted-foreground ml-1">{config.unit}</span>
+        <div className="flex items-center gap-1">
+          <Input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={handleInputChange}
+            onBlur={handleInputBlur}
+            onFocus={handleInputFocus}
+            onKeyDown={handleInputKeyDown}
+            disabled={disabled}
+            className="w-20 h-7 text-right font-mono text-sm px-2 py-0"
+          />
+          <span className="text-muted-foreground text-sm">{config.unit}</span>
         </div>
       </div>
 
