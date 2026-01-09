@@ -1,4 +1,6 @@
 import { JointConfig } from '@/types/robot';
+import { Button } from '@/components/ui/button';
+import { Minus, Plus } from 'lucide-react';
 
 interface JointControlProps {
   config: JointConfig;
@@ -7,8 +9,15 @@ interface JointControlProps {
   disabled?: boolean;
 }
 
+const JOG_AMOUNTS = [-10, -1, 1, 10];
+
 export function JointControl({ config, value, onChange, disabled }: JointControlProps) {
   const percentage = ((value - config.min) / (config.max - config.min)) * 100;
+
+  const handleJog = (amount: number) => {
+    const newValue = Math.max(config.min, Math.min(config.max, value + amount));
+    onChange(newValue);
+  };
 
   return (
     <div className="p-4 bg-muted/30 rounded-lg border border-border/50 animate-fade-in">
@@ -18,6 +27,23 @@ export function JointControl({ config, value, onChange, disabled }: JointControl
           <span className="text-foreground">{value.toFixed(1)}</span>
           <span className="text-muted-foreground ml-1">{config.unit}</span>
         </div>
+      </div>
+
+      {/* Jog Buttons */}
+      <div className="flex items-center gap-1 mb-3">
+        {JOG_AMOUNTS.map((amount) => (
+          <Button
+            key={amount}
+            variant="outline"
+            size="sm"
+            onClick={() => handleJog(amount)}
+            disabled={disabled}
+            className="flex-1 h-8 text-xs font-mono"
+          >
+            {amount > 0 ? <Plus className="w-3 h-3 mr-0.5" /> : <Minus className="w-3 h-3 mr-0.5" />}
+            {Math.abs(amount)}°
+          </Button>
+        ))}
       </div>
 
       <div className="relative">

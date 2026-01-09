@@ -1,17 +1,31 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { ConnectionStatus, JointAngles, RobotMessage } from '@/types/robot';
+import { ConnectionStatus, JointAngles, RobotMessage, RobotSettings, LogEntry } from '@/types/robot';
 
 const THROTTLE_MS = 50;
 
 export function useRobotConnection() {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [ipAddress, setIpAddress] = useState('192.168.1.50');
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [isStopped, setIsStopped] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const lastSendRef = useRef<number>(0);
   const pendingMessageRef = useRef<RobotMessage | null>(null);
   const throttleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const addLog = useCallback((message: string, type: LogEntry['type'] = 'info') => {
+    const entry: LogEntry = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: new Date(),
+      message,
+      type,
+    };
+    setLogs((prev) => [...prev.slice(-99), entry]);
+  }, []);
+
   const sendMessage = useCallback((joints: JointAngles) => {
+    if (isStopped) return;
+
     const message: RobotMessage = {
       joints: [joints.base, joints.shoulder, joints.elbow, joints.wrist],
     };
@@ -29,7 +43,7 @@ export function useRobotConnection() {
       
       if (!throttleTimeoutRef.current) {
         throttleTimeoutRef.current = setTimeout(() => {
-          if (pendingMessageRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
+          if (pendingMessageRef.current && wsRef.current?.readyState === WebSocket.OPEN && !isStopped) {
             wsRef.current.send(JSON.stringify(pendingMessageRef.current));
             lastSendRef.current = Date.now();
             pendingMessageRef.current = null;
@@ -38,7 +52,34 @@ export function useRobotConnection() {
         }, THROTTLE_MS - timeSinceLastSend);
       }
     }
-  }, []);
+  }, [isStopped]);
+
+  const sendStop = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      const stopMessage = { type: 'stop' };
+      wsRef.current.send(JSON.stringify(stopMessage));
+      addLog('Emergency stop sent', 'warning');
+      setIsStopped(true);
+    }
+  }, [addLog]);
+
+  const resetStop = useCallback(() => {
+    setIsStopped(false);
+    addLog('Controls resumed', 'info');
+  }, [addLog]);
+
+  const sendSettings = useCallback((settings: RobotSettings) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      const settingsMessage = {
+        type: 'settings',
+        maxSpeed: settings.maxSpeed,
+        acceleration: settings.acceleration,
+        enabledJoints: settings.enabledJoints,
+      };
+      wsRef.current.send(JSON.stringify(settingsMessage));
+      addLog(`Settings updated: speed=${settings.maxSpeed}, accel=${settings.acceleration}`, 'sent');
+    }
+  }, [addLog]);
 
   const connect = useCallback(() => {
     if (wsRef.current) {
@@ -46,6 +87,7 @@ export function useRobotConnection() {
     }
 
     setStatus('connecting');
+    addLog(`Connecting to ${ipAddress}:81...`, 'info');
 
     try {
       const ws = new WebSocket(`ws://${ipAddress}:81`);
@@ -53,35 +95,41 @@ export function useRobotConnection() {
 
       ws.onopen = () => {
         setStatus('connected');
+        setIsStopped(false);
+        addLog('Connected successfully', 'info');
       };
 
       ws.onclose = () => {
         setStatus('disconnected');
         wsRef.current = null;
+        addLog('Connection closed', 'warning');
       };
 
       ws.onerror = () => {
         setStatus('disconnected');
         wsRef.current = null;
+        addLog('Connection error', 'error');
       };
 
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          // Handle feedback from robot controller
           if (data.joints && Array.isArray(data.joints)) {
-            // Feedback handling would update state here
-            console.log('Received feedback:', data);
+            addLog(`Feedback: [${data.joints.join(', ')}]`, 'info');
+          } else if (data.log) {
+            addLog(data.log, data.level || 'info');
+          } else {
+            addLog(`Received: ${event.data}`, 'info');
           }
         } catch (e) {
-          console.error('Failed to parse message:', e);
+          addLog(`Raw message: ${event.data}`, 'info');
         }
       };
     } catch (error) {
       setStatus('disconnected');
-      console.error('Connection error:', error);
+      addLog(`Connection failed: ${error}`, 'error');
     }
-  }, [ipAddress]);
+  }, [ipAddress, addLog]);
 
   const disconnect = useCallback(() => {
     if (wsRef.current) {
@@ -89,6 +137,11 @@ export function useRobotConnection() {
       wsRef.current = null;
     }
     setStatus('disconnected');
+    addLog('Disconnected', 'info');
+  }, [addLog]);
+
+  const clearLogs = useCallback(() => {
+    setLogs([]);
   }, []);
 
   useEffect(() => {
@@ -109,5 +162,11 @@ export function useRobotConnection() {
     connect,
     disconnect,
     sendMessage,
+    sendStop,
+    resetStop,
+    sendSettings,
+    logs,
+    clearLogs,
+    isStopped,
   };
 }

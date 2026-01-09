@@ -17,6 +17,40 @@ export interface RobotMessage {
   joints: [number, number, number, number];
 }
 
+export interface StopMessage {
+  type: 'stop';
+}
+
+export interface SettingsMessage {
+  type: 'settings';
+  maxSpeed: number;
+  acceleration: number;
+  enabledJoints: {
+    base: boolean;
+    shoulder: boolean;
+    elbow: boolean;
+    wrist: boolean;
+  };
+}
+
+export interface RobotSettings {
+  maxSpeed: number;
+  acceleration: number;
+  enabledJoints: {
+    base: boolean;
+    shoulder: boolean;
+    elbow: boolean;
+    wrist: boolean;
+  };
+}
+
+export interface LogEntry {
+  id: string;
+  timestamp: Date;
+  message: string;
+  type: 'info' | 'warning' | 'error' | 'sent';
+}
+
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
 
 export const JOINT_CONFIGS: JointConfig[] = [
@@ -31,4 +65,15 @@ export const DEFAULT_JOINT_ANGLES: JointAngles = {
   shoulder: 45,
   elbow: 45,
   wrist: 0,
+};
+
+export const DEFAULT_SETTINGS: RobotSettings = {
+  maxSpeed: 100,
+  acceleration: 50,
+  enabledJoints: {
+    base: true,
+    shoulder: true,
+    elbow: true,
+    wrist: true,
+  },
 };
