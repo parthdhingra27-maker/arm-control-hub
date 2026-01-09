@@ -115,20 +115,25 @@ export function Dashboard() {
           </TabsList>
 
           <TabsContent value="control" className="flex-1 overflow-hidden">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-full">
-              {/* Joint Controls */}
-              <JointControlPanel
-                joints={joints}
-                onJointChange={handleJointChange}
-                disabled={isControlDisabled}
-                enabledJoints={settings.enabledJoints}
-              />
+            <div className="flex flex-col gap-4 h-full">
+              {/* Main panels - Joint Controls and 3D Visualization */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
+                {/* Joint Controls */}
+                <JointControlPanel
+                  joints={joints}
+                  onJointChange={handleJointChange}
+                  disabled={isControlDisabled}
+                  enabledJoints={settings.enabledJoints}
+                />
 
-              {/* 3D Visualization */}
-              <RobotVisualization joints={joints} />
+                {/* 3D Visualization */}
+                <RobotVisualization joints={joints} />
+              </div>
 
-              {/* Logging Panel */}
-              <LoggingPanel logs={logs} onClear={clearLogs} />
+              {/* Logging Panel - smaller */}
+              <div className="h-32 flex-shrink-0">
+                <LoggingPanel logs={logs} onClear={clearLogs} />
+              </div>
             </div>
           </TabsContent>
 
