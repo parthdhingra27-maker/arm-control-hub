@@ -155,7 +155,7 @@ export function Dashboard() {
       <footer className="border-t border-border bg-card/30 py-3">
         <div className="container mx-auto px-4 flex items-center justify-between text-xs text-muted-foreground">
           <span>Robot controller authority: ESP32</span>
-          <span>Parth Dhingra</span>
+          <span>Developed by Parth Dhingra</span>
           <span>Frontend visualization only — no motion planning</span>
         </div>
       </footer>
