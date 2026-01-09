@@ -2,27 +2,52 @@ import { useState, useCallback, useEffect } from 'react';
 import { ConnectionHeader } from './ConnectionHeader';
 import { JointControlPanel } from './JointControlPanel';
 import { RobotVisualization } from './RobotVisualization';
+import { EmergencyStop } from './EmergencyStop';
+import { SettingsPanel } from './SettingsPanel';
+import { LoggingPanel } from './LoggingPanel';
 import { useRobotConnection } from '@/hooks/useRobotConnection';
-import { JointAngles, DEFAULT_JOINT_ANGLES } from '@/types/robot';
+import { JointAngles, DEFAULT_JOINT_ANGLES, RobotSettings, DEFAULT_SETTINGS } from '@/types/robot';
 import { Activity } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export function Dashboard() {
   const [joints, setJoints] = useState<JointAngles>(DEFAULT_JOINT_ANGLES);
-  const { status, ipAddress, setIpAddress, connect, disconnect, sendMessage } = useRobotConnection();
+  const [settings, setSettings] = useState<RobotSettings>(DEFAULT_SETTINGS);
+  const {
+    status,
+    ipAddress,
+    setIpAddress,
+    connect,
+    disconnect,
+    sendMessage,
+    sendStop,
+    resetStop,
+    sendSettings,
+    logs,
+    clearLogs,
+    isStopped,
+  } = useRobotConnection();
 
   const handleJointChange = useCallback((key: keyof JointAngles, value: number) => {
+    if (!settings.enabledJoints[key]) return;
     setJoints((prev) => {
       const newJoints = { ...prev, [key]: value };
       return newJoints;
     });
-  }, []);
+  }, [settings.enabledJoints]);
+
+  const handleSendSettings = useCallback(() => {
+    sendSettings(settings);
+  }, [settings, sendSettings]);
 
   // Send joint updates when connected
   useEffect(() => {
-    if (status === 'connected') {
+    if (status === 'connected' && !isStopped) {
       sendMessage(joints);
     }
-  }, [joints, status, sendMessage]);
+  }, [joints, status, sendMessage, isStopped]);
+
+  const isControlDisabled = status !== 'connected' || isStopped;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -38,14 +63,22 @@ export function Dashboard() {
               <p className="text-xs text-muted-foreground">Control Dashboard</p>
             </div>
           </div>
-          <div className="hidden md:flex items-center gap-6 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <span className="uppercase tracking-wide">Protocol:</span>
-              <span className="font-mono text-foreground">WebSocket</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="uppercase tracking-wide">Rate:</span>
-              <span className="font-mono text-foreground">20 Hz</span>
+          <div className="flex items-center gap-4">
+            <EmergencyStop
+              isStopped={isStopped}
+              onStop={sendStop}
+              onReset={resetStop}
+              disabled={status !== 'connected'}
+            />
+            <div className="hidden md:flex items-center gap-6 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <span className="uppercase tracking-wide">Protocol:</span>
+                <span className="font-mono text-foreground">WebSocket</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="uppercase tracking-wide">Rate:</span>
+                <span className="font-mono text-foreground">20 Hz</span>
+              </div>
             </div>
           </div>
         </div>
@@ -62,19 +95,55 @@ export function Dashboard() {
         />
       </div>
 
+      {/* Stopped Banner */}
+      {isStopped && (
+        <div className="container mx-auto px-4 pb-4">
+          <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 flex items-center justify-center gap-2">
+            <span className="text-destructive font-semibold uppercase tracking-wider text-sm">
+              ⚠ Emergency Stop Active — Controls Disabled
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
       <div className="flex-1 container mx-auto px-4 pb-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[calc(100vh-220px)] min-h-[500px]">
-          {/* Joint Controls */}
-          <JointControlPanel
-            joints={joints}
-            onJointChange={handleJointChange}
-            disabled={status !== 'connected'}
-          />
+        <Tabs defaultValue="control" className="h-[calc(100vh-260px)] min-h-[500px]">
+          <TabsList className="mb-4">
+            <TabsTrigger value="control">Control</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
+          </TabsList>
 
-          {/* 3D Visualization */}
-          <RobotVisualization joints={joints} />
-        </div>
+          <TabsContent value="control" className="h-[calc(100%-48px)]">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-full">
+              {/* Joint Controls */}
+              <JointControlPanel
+                joints={joints}
+                onJointChange={handleJointChange}
+                disabled={isControlDisabled}
+                enabledJoints={settings.enabledJoints}
+              />
+
+              {/* 3D Visualization */}
+              <RobotVisualization joints={joints} />
+
+              {/* Logging Panel */}
+              <LoggingPanel logs={logs} onClear={clearLogs} />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="settings" className="h-[calc(100%-48px)]">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full">
+              <SettingsPanel
+                settings={settings}
+                onSettingsChange={setSettings}
+                onSendSettings={handleSendSettings}
+                disabled={status !== 'connected'}
+              />
+              <LoggingPanel logs={logs} onClear={clearLogs} />
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Footer */}
