@@ -6,6 +6,7 @@ import { ConnectionStatus } from '@/types/robot';
 interface ConnectionHeaderProps {
   status: ConnectionStatus;
   ipAddress: string;
+  latency: number | null;
   onIpChange: (ip: string) => void;
   onConnect: () => void;
   onDisconnect: () => void;
@@ -14,12 +15,20 @@ interface ConnectionHeaderProps {
 export function ConnectionHeader({
   status,
   ipAddress,
+  latency,
   onIpChange,
   onConnect,
   onDisconnect,
 }: ConnectionHeaderProps) {
   const isConnected = status === 'connected';
   const isConnecting = status === 'connecting';
+
+  const getLatencyColor = (ms: number | null) => {
+    if (ms === null) return 'text-muted-foreground';
+    if (ms < 50) return 'text-success';
+    if (ms < 150) return 'text-warning';
+    return 'text-destructive';
+  };
 
   return (
     <header className="panel">
@@ -42,6 +51,11 @@ export function ConnectionHeader({
             <span className="text-xs text-muted-foreground uppercase tracking-wide">
               {status}
             </span>
+            {isConnected && (
+              <span className={`text-xs font-mono ${getLatencyColor(latency)}`}>
+                {latency !== null ? `${latency}ms` : '-- ms'}
+              </span>
+            )}
           </div>
         </div>
 

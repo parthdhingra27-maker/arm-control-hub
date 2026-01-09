@@ -8,10 +8,13 @@ export function useRobotConnection() {
   const [ipAddress, setIpAddress] = useState('192.168.1.50');
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isStopped, setIsStopped] = useState(false);
+  const [latency, setLatency] = useState<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const lastSendRef = useRef<number>(0);
   const pendingMessageRef = useRef<RobotMessage | null>(null);
   const throttleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pingTimestampRef = useRef<number>(0);
 
   const addLog = useCallback((message: string, type: LogEntry['type'] = 'info') => {
     const entry: LogEntry = {
@@ -97,24 +100,45 @@ export function useRobotConnection() {
         setStatus('connected');
         setIsStopped(false);
         addLog('Connected successfully', 'info');
+        
+        // Start ping interval for latency measurement
+        pingIntervalRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            pingTimestampRef.current = Date.now();
+            ws.send(JSON.stringify({ type: 'ping' }));
+          }
+        }, 2000);
       };
 
       ws.onclose = () => {
         setStatus('disconnected');
+        setLatency(null);
         wsRef.current = null;
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current);
+          pingIntervalRef.current = null;
+        }
         addLog('Connection closed', 'warning');
       };
 
       ws.onerror = () => {
         setStatus('disconnected');
+        setLatency(null);
         wsRef.current = null;
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current);
+          pingIntervalRef.current = null;
+        }
         addLog('Connection error', 'error');
       };
 
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (data.joints && Array.isArray(data.joints)) {
+          if (data.type === 'pong') {
+            const rtt = Date.now() - pingTimestampRef.current;
+            setLatency(rtt);
+          } else if (data.joints && Array.isArray(data.joints)) {
             addLog(`Feedback: [${data.joints.join(', ')}]`, 'info');
           } else if (data.log) {
             addLog(data.log, data.level || 'info');
@@ -132,11 +156,16 @@ export function useRobotConnection() {
   }, [ipAddress, addLog]);
 
   const disconnect = useCallback(() => {
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current);
+      pingIntervalRef.current = null;
+    }
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
     }
     setStatus('disconnected');
+    setLatency(null);
     addLog('Disconnected', 'info');
   }, [addLog]);
 
@@ -148,6 +177,9 @@ export function useRobotConnection() {
     return () => {
       if (throttleTimeoutRef.current) {
         clearTimeout(throttleTimeoutRef.current);
+      }
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
       }
       if (wsRef.current) {
         wsRef.current.close();
@@ -168,5 +200,6 @@ export function useRobotConnection() {
     logs,
     clearLogs,
     isStopped,
+    latency,
   };
 }

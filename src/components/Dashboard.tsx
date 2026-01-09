@@ -26,6 +26,7 @@ export function Dashboard() {
     logs,
     clearLogs,
     isStopped,
+    latency,
   } = useRobotConnection();
 
   const handleJointChange = useCallback((key: keyof JointAngles, value: number) => {
@@ -89,6 +90,7 @@ export function Dashboard() {
         <ConnectionHeader
           status={status}
           ipAddress={ipAddress}
+          latency={latency}
           onIpChange={setIpAddress}
           onConnect={connect}
           onDisconnect={disconnect}
