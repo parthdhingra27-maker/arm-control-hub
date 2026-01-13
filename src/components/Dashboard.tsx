@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { ConnectionHeader } from './ConnectionHeader';
 import { JointControlPanel } from './JointControlPanel';
 import { RobotVisualization } from './RobotVisualization';
@@ -6,13 +6,18 @@ import { EmergencyStop } from './EmergencyStop';
 import { SettingsPanel } from './SettingsPanel';
 import { LoggingPanel } from './LoggingPanel';
 import { useRobotConnection } from '@/hooks/useRobotConnection';
-import { JointAngles, DEFAULT_JOINT_ANGLES, RobotSettings, DEFAULT_SETTINGS } from '@/types/robot';
+import { JointAngles, DEFAULT_JOINT_ANGLES, RobotSettings, DEFAULT_SETTINGS, JointKey } from '@/types/robot';
 import { Activity } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export function Dashboard() {
-  const [joints, setJoints] = useState<JointAngles>(DEFAULT_JOINT_ANGLES);
+  // Target angles (slider state)
+  const [targetJoints, setTargetJoints] = useState<JointAngles>(DEFAULT_JOINT_ANGLES);
   const [settings, setSettings] = useState<RobotSettings>(DEFAULT_SETTINGS);
+  
+  // Track if we should sync sliders to encoders
+  const lastTargetSentRef = useRef<JointAngles>(DEFAULT_JOINT_ANGLES);
+  
   const {
     status,
     ipAddress,
@@ -23,19 +28,34 @@ export function Dashboard() {
     sendStop,
     resetStop,
     sendSettings,
+    sendSetZero,
+    sendMotionConfig,
+    sendInvertDirection,
     logs,
     clearLogs,
     isStopped,
     latency,
+    encoderAngles,
+    rawEncoderAngles,
+    motionState,
   } = useRobotConnection();
+
+  // Clamp value to joint limits
+  const clampToLimits = useCallback((key: JointKey, value: number): number => {
+    const limits = settings.jointLimits[key];
+    return Math.max(limits.min, Math.min(limits.max, value));
+  }, [settings.jointLimits]);
 
   const handleJointChange = useCallback((key: keyof JointAngles, value: number) => {
     if (!settings.enabledJoints[key]) return;
-    setJoints((prev) => {
-      const newJoints = { ...prev, [key]: value };
+    
+    const clampedValue = clampToLimits(key, value);
+    setTargetJoints((prev) => {
+      const newJoints = { ...prev, [key]: clampedValue };
+      lastTargetSentRef.current = newJoints;
       return newJoints;
     });
-  }, [settings.enabledJoints]);
+  }, [settings.enabledJoints, clampToLimits]);
 
   const handleSendSettings = useCallback(() => {
     sendSettings(settings);
@@ -44,9 +64,24 @@ export function Dashboard() {
   // Send joint updates when connected
   useEffect(() => {
     if (status === 'connected' && !isStopped) {
-      sendMessage(joints);
+      sendMessage(targetJoints);
     }
-  }, [joints, status, sendMessage, isStopped]);
+  }, [targetJoints, status, sendMessage, isStopped]);
+
+  // Sync sliders to encoder when target is reached (smooth sync)
+  useEffect(() => {
+    if (motionState.targetReached && !motionState.isMoving) {
+      // Only sync if there's a significant difference (prevents jitter)
+      const threshold = 0.5;
+      const needsSync = (Object.keys(encoderAngles) as JointKey[]).some(
+        (key) => Math.abs(targetJoints[key] - encoderAngles[key]) > threshold
+      );
+      
+      if (needsSync) {
+        setTargetJoints(encoderAngles);
+      }
+    }
+  }, [motionState.targetReached, motionState.isMoving, encoderAngles, targetJoints]);
 
   const isControlDisabled = status !== 'connected' || isStopped;
 
@@ -80,6 +115,12 @@ export function Dashboard() {
                 <span className="uppercase tracking-wide">Rate:</span>
                 <span className="font-mono text-foreground">20 Hz</span>
               </div>
+              {motionState.isMoving && (
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-warning animate-pulse" />
+                  <span className="text-warning">Moving</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -120,16 +161,19 @@ export function Dashboard() {
             <div className="flex flex-col gap-4 h-full">
               {/* Main panels - Joint Controls and 3D Visualization */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
-                {/* Joint Controls */}
+                {/* Joint Controls - shows target angles (sliders) and encoder angles (readouts) */}
                 <JointControlPanel
-                  joints={joints}
+                  targetJoints={targetJoints}
+                  encoderAngles={encoderAngles}
+                  jointLimits={settings.jointLimits}
                   onJointChange={handleJointChange}
                   disabled={isControlDisabled}
                   enabledJoints={settings.enabledJoints}
+                  isMoving={motionState.isMoving}
                 />
 
-                {/* 3D Visualization */}
-                <RobotVisualization joints={joints} />
+                {/* 3D Visualization - driven by encoder angles (actual position) */}
+                <RobotVisualization joints={encoderAngles} />
               </div>
 
               {/* Logging Panel - smaller */}
@@ -145,6 +189,11 @@ export function Dashboard() {
                 settings={settings}
                 onSettingsChange={setSettings}
                 onSendSettings={handleSendSettings}
+                onSetZero={sendSetZero}
+                onSendMotionConfig={sendMotionConfig}
+                onSendInvert={sendInvertDirection}
+                encoderAngles={encoderAngles}
+                rawEncoderAngles={rawEncoderAngles}
                 disabled={status !== 'connected'}
               />
               <LoggingPanel logs={logs} onClear={clearLogs} />

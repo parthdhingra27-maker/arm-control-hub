@@ -13,6 +13,37 @@ export interface JointConfig {
   unit: string;
 }
 
+export interface JointLimits {
+  min: number;
+  max: number;
+}
+
+export interface PerJointLimits {
+  base: JointLimits;
+  shoulder: JointLimits;
+  elbow: JointLimits;
+  wrist: JointLimits;
+}
+
+export interface MotionConfig {
+  maxSpeed: number;      // deg/s
+  maxAccel: number;      // deg/s²
+}
+
+export interface PerJointMotionConfig {
+  base: MotionConfig;
+  shoulder: MotionConfig;
+  elbow: MotionConfig;
+  wrist: MotionConfig;
+}
+
+export interface PerJointInversion {
+  base: boolean;
+  shoulder: boolean;
+  elbow: boolean;
+  wrist: boolean;
+}
+
 export interface RobotMessage {
   joints: [number, number, number, number];
 }
@@ -42,6 +73,9 @@ export interface RobotSettings {
     elbow: boolean;
     wrist: boolean;
   };
+  jointLimits: PerJointLimits;
+  motionConfig: PerJointMotionConfig;
+  invertDirection: PerJointInversion;
 }
 
 export interface LogEntry {
@@ -52,6 +86,10 @@ export interface LogEntry {
 }
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
+
+export type JointKey = keyof JointAngles;
+
+export const JOINT_KEYS: JointKey[] = ['base', 'shoulder', 'elbow', 'wrist'];
 
 export const JOINT_CONFIGS: JointConfig[] = [
   { name: 'Base Rotation', key: 'base', min: -180, max: 180, unit: '°' },
@@ -67,6 +105,27 @@ export const DEFAULT_JOINT_ANGLES: JointAngles = {
   wrist: 0,
 };
 
+export const DEFAULT_JOINT_LIMITS: PerJointLimits = {
+  base: { min: -180, max: 180 },
+  shoulder: { min: -30, max: 90 },
+  elbow: { min: 0, max: 135 },
+  wrist: { min: -180, max: 180 },
+};
+
+export const DEFAULT_MOTION_CONFIG: PerJointMotionConfig = {
+  base: { maxSpeed: 60, maxAccel: 120 },
+  shoulder: { maxSpeed: 45, maxAccel: 90 },
+  elbow: { maxSpeed: 60, maxAccel: 120 },
+  wrist: { maxSpeed: 90, maxAccel: 180 },
+};
+
+export const DEFAULT_INVERSION: PerJointInversion = {
+  base: false,
+  shoulder: false,
+  elbow: false,
+  wrist: false,
+};
+
 export const DEFAULT_SETTINGS: RobotSettings = {
   maxSpeed: 100,
   acceleration: 50,
@@ -76,4 +135,7 @@ export const DEFAULT_SETTINGS: RobotSettings = {
     elbow: true,
     wrist: true,
   },
+  jointLimits: DEFAULT_JOINT_LIMITS,
+  motionConfig: DEFAULT_MOTION_CONFIG,
+  invertDirection: DEFAULT_INVERSION,
 };
