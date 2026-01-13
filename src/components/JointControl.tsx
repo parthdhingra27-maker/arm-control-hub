@@ -9,6 +9,8 @@ interface JointControlProps {
   targetValue: number;
   encoderValue: number;
   onChange: (value: number) => void;
+  onInteractionStart?: () => void;
+  onInteractionEnd?: () => void;
   disabled?: boolean;
   atMinLimit?: boolean;
   atMaxLimit?: boolean;
@@ -20,7 +22,9 @@ export function JointControl({
   config, 
   targetValue, 
   encoderValue, 
-  onChange, 
+  onChange,
+  onInteractionStart,
+  onInteractionEnd,
   disabled,
   atMinLimit,
   atMaxLimit 
@@ -77,7 +81,13 @@ export function JointControl({
 
   const handleInputFocus = () => {
     setIsEditing(true);
+    onInteractionStart?.();
     inputRef.current?.select();
+  };
+
+  const handleInputBlurWithInteraction = () => {
+    handleInputBlur();
+    onInteractionEnd?.();
   };
 
   const showLimitWarning = atMinLimit || atMaxLimit;
@@ -111,7 +121,7 @@ export function JointControl({
                 type="text"
                 value={inputValue}
                 onChange={handleInputChange}
-                onBlur={handleInputBlur}
+                onBlur={handleInputBlurWithInteraction}
                 onFocus={handleInputFocus}
                 onKeyDown={handleInputKeyDown}
                 disabled={disabled}
@@ -164,6 +174,10 @@ export function JointControl({
           step={0.1}
           value={targetValue}
           onChange={(e) => onChange(parseFloat(e.target.value))}
+          onMouseDown={onInteractionStart}
+          onMouseUp={onInteractionEnd}
+          onTouchStart={onInteractionStart}
+          onTouchEnd={onInteractionEnd}
           disabled={disabled}
           className="w-full disabled:opacity-50 disabled:cursor-not-allowed"
         />
