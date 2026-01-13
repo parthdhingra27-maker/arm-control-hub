@@ -73,20 +73,10 @@ export function Dashboard() {
     }
   }, [targetJoints, status, sendMessage, isStopped]);
 
-  // Sync sliders to encoder only when motion stops AND user is not interacting
-  useEffect(() => {
-    if (motionState.targetReached && !motionState.isMoving && !isUserInteractingRef.current) {
-      // Only sync if there's a significant difference (prevents jitter)
-      const threshold = 0.5;
-      const needsSync = (Object.keys(encoderAngles) as JointKey[]).some(
-        (key) => Math.abs(targetJoints[key] - encoderAngles[key]) > threshold
-      );
-      
-      if (needsSync) {
-        setTargetJoints(encoderAngles);
-      }
-    }
-  }, [motionState.targetReached, motionState.isMoving, encoderAngles, targetJoints]);
+  // NOTE: targetJoints and encoderAngles are completely separate:
+  // - targetJoints: user-controlled via sliders/jog, represents commanded position
+  // - encoderAngles: from WebSocket feedback, represents actual position (drives 3D model and readouts)
+  // No automatic sync from encoder to slider - sliders only change via user interaction
 
   const isControlDisabled = status !== 'connected' || isStopped;
 
