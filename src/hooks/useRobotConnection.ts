@@ -193,13 +193,36 @@ export function useRobotConnection() {
             setLatency(rtt);
           } else if (data.type === 'status' && data.encoders) {
             // Encoder-driven status update from ESP32
-            const [base, shoulder, elbow, wrist] = data.encoders;
-            setEncoderAngles({ base, shoulder, elbow, wrist });
+            // Validate each encoder value - use previous value if null/undefined
+            const encoderArray = data.encoders;
             
-            // Raw encoder values if provided
+            setEncoderAngles((prev) => {
+              const isValid = (val: unknown): val is number => 
+                val !== null && val !== undefined && typeof val === 'number' && !isNaN(val);
+              
+              return {
+                base: isValid(encoderArray[0]) ? encoderArray[0] : prev.base,
+                shoulder: isValid(encoderArray[1]) ? encoderArray[1] : prev.shoulder,
+                elbow: isValid(encoderArray[2]) ? encoderArray[2] : prev.elbow,
+                wrist: isValid(encoderArray[3]) ? encoderArray[3] : prev.wrist,
+              };
+            });
+            
+            // Raw encoder values if provided - same validation
             if (data.rawEncoders) {
-              const [rawBase, rawShoulder, rawElbow, rawWrist] = data.rawEncoders;
-              setRawEncoderAngles({ base: rawBase, shoulder: rawShoulder, elbow: rawElbow, wrist: rawWrist });
+              const rawArray = data.rawEncoders;
+              
+              setRawEncoderAngles((prev) => {
+                const isValid = (val: unknown): val is number => 
+                  val !== null && val !== undefined && typeof val === 'number' && !isNaN(val);
+                
+                return {
+                  base: isValid(rawArray[0]) ? rawArray[0] : prev.base,
+                  shoulder: isValid(rawArray[1]) ? rawArray[1] : prev.shoulder,
+                  elbow: isValid(rawArray[2]) ? rawArray[2] : prev.elbow,
+                  wrist: isValid(rawArray[3]) ? rawArray[3] : prev.wrist,
+                };
+              });
             }
             
             // Motion state
