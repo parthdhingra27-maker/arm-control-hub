@@ -15,8 +15,8 @@ export function Dashboard() {
   const [targetJoints, setTargetJoints] = useState<JointAngles>(DEFAULT_JOINT_ANGLES);
   const [settings, setSettings] = useState<RobotSettings>(DEFAULT_SETTINGS);
   
-  // Track if we should sync sliders to encoders
-  const lastTargetSentRef = useRef<JointAngles>(DEFAULT_JOINT_ANGLES);
+  // Track user interaction to prevent encoder feedback from updating sliders during interaction
+  const isUserInteractingRef = useRef(false);
   
   const {
     status,
@@ -50,12 +50,17 @@ export function Dashboard() {
     if (!settings.enabledJoints[key]) return;
     
     const clampedValue = clampToLimits(key, value);
-    setTargetJoints((prev) => {
-      const newJoints = { ...prev, [key]: clampedValue };
-      lastTargetSentRef.current = newJoints;
-      return newJoints;
-    });
+    setTargetJoints((prev) => ({ ...prev, [key]: clampedValue }));
   }, [settings.enabledJoints, clampToLimits]);
+
+  // Track when user starts/stops interacting with controls
+  const handleInteractionStart = useCallback(() => {
+    isUserInteractingRef.current = true;
+  }, []);
+
+  const handleInteractionEnd = useCallback(() => {
+    isUserInteractingRef.current = false;
+  }, []);
 
   const handleSendSettings = useCallback(() => {
     sendSettings(settings);
@@ -68,9 +73,9 @@ export function Dashboard() {
     }
   }, [targetJoints, status, sendMessage, isStopped]);
 
-  // Sync sliders to encoder when target is reached (smooth sync)
+  // Sync sliders to encoder only when motion stops AND user is not interacting
   useEffect(() => {
-    if (motionState.targetReached && !motionState.isMoving) {
+    if (motionState.targetReached && !motionState.isMoving && !isUserInteractingRef.current) {
       // Only sync if there's a significant difference (prevents jitter)
       const threshold = 0.5;
       const needsSync = (Object.keys(encoderAngles) as JointKey[]).some(
@@ -167,6 +172,8 @@ export function Dashboard() {
                   encoderAngles={encoderAngles}
                   jointLimits={settings.jointLimits}
                   onJointChange={handleJointChange}
+                  onInteractionStart={handleInteractionStart}
+                  onInteractionEnd={handleInteractionEnd}
                   disabled={isControlDisabled}
                   enabledJoints={settings.enabledJoints}
                   isMoving={motionState.isMoving}

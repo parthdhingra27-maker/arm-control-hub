@@ -7,6 +7,8 @@ interface JointControlPanelProps {
   encoderAngles: JointAngles;
   jointLimits: PerJointLimits;
   onJointChange: (key: keyof JointAngles, value: number) => void;
+  onInteractionStart?: () => void;
+  onInteractionEnd?: () => void;
   disabled?: boolean;
   enabledJoints?: {
     base: boolean;
@@ -21,7 +23,9 @@ export function JointControlPanel({
   targetJoints, 
   encoderAngles,
   jointLimits,
-  onJointChange, 
+  onJointChange,
+  onInteractionStart,
+  onInteractionEnd,
   disabled, 
   enabledJoints,
   isMoving
@@ -64,6 +68,8 @@ export function JointControlPanel({
                 targetValue={targetValue}
                 encoderValue={encoderValue}
                 onChange={(value) => onJointChange(joint, value)}
+                onInteractionStart={onInteractionStart}
+                onInteractionEnd={onInteractionEnd}
                 disabled={isJointDisabled}
                 atMinLimit={atMinLimit}
                 atMaxLimit={atMaxLimit}
