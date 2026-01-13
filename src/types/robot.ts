@@ -45,6 +45,7 @@ export interface PerJointInversion {
 }
 
 export interface RobotMessage {
+  type: 'move';
   joints: [number, number, number, number];
 }
 

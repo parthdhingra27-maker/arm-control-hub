@@ -54,6 +54,7 @@ export function useRobotConnection() {
     if (isStopped) return;
 
     const message: RobotMessage = {
+      type: 'move',
       joints: [joints.base, joints.shoulder, joints.elbow, joints.wrist],
     };
 
