@@ -1,7 +1,20 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { ConnectionStatus, JointAngles, RobotMessage, RobotSettings, LogEntry } from '@/types/robot';
+import { 
+  ConnectionStatus, 
+  JointAngles, 
+  RobotMessage, 
+  RobotSettings, 
+  LogEntry,
+  JointKey,
+  DEFAULT_JOINT_ANGLES
+} from '@/types/robot';
 
 const THROTTLE_MS = 50;
+
+export interface MotionState {
+  isMoving: boolean;
+  targetReached: boolean;
+}
 
 export function useRobotConnection() {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
@@ -9,6 +22,17 @@ export function useRobotConnection() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isStopped, setIsStopped] = useState(false);
   const [latency, setLatency] = useState<number | null>(null);
+  
+  // Encoder-driven state (source of truth for actual position)
+  const [encoderAngles, setEncoderAngles] = useState<JointAngles>(DEFAULT_JOINT_ANGLES);
+  const [rawEncoderAngles, setRawEncoderAngles] = useState<JointAngles>(DEFAULT_JOINT_ANGLES);
+  
+  // Motion state tracking
+  const [motionState, setMotionState] = useState<MotionState>({
+    isMoving: false,
+    targetReached: true,
+  });
+  
   const wsRef = useRef<WebSocket | null>(null);
   const lastSendRef = useRef<number>(0);
   const pendingMessageRef = useRef<RobotMessage | null>(null);
@@ -84,6 +108,33 @@ export function useRobotConnection() {
     }
   }, [addLog]);
 
+  // Send set_zero command for a joint
+  const sendSetZero = useCallback((joint: JointKey) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      const message = { type: 'set_zero', joint };
+      wsRef.current.send(JSON.stringify(message));
+      addLog(`Set zero for ${joint}`, 'sent');
+    }
+  }, [addLog]);
+
+  // Send motion config for a joint
+  const sendMotionConfig = useCallback((joint: JointKey, maxSpeed: number, maxAccel: number) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      const message = { type: 'motion_config', joint, maxSpeed, maxAccel };
+      wsRef.current.send(JSON.stringify(message));
+      addLog(`Motion config for ${joint}: speed=${maxSpeed}, accel=${maxAccel}`, 'sent');
+    }
+  }, [addLog]);
+
+  // Send invert direction for a joint
+  const sendInvertDirection = useCallback((joint: JointKey, value: boolean) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      const message = { type: 'invert_joint', joint, value };
+      wsRef.current.send(JSON.stringify(message));
+      addLog(`Invert ${joint}: ${value}`, 'sent');
+    }
+  }, [addLog]);
+
   const connect = useCallback(() => {
     if (wsRef.current) {
       wsRef.current.close();
@@ -135,13 +186,35 @@ export function useRobotConnection() {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          
           if (data.type === 'pong') {
             const rtt = Date.now() - pingTimestampRef.current;
             setLatency(rtt);
+          } else if (data.type === 'status' && data.encoders) {
+            // Encoder-driven status update from ESP32
+            const [base, shoulder, elbow, wrist] = data.encoders;
+            setEncoderAngles({ base, shoulder, elbow, wrist });
+            
+            // Raw encoder values if provided
+            if (data.rawEncoders) {
+              const [rawBase, rawShoulder, rawElbow, rawWrist] = data.rawEncoders;
+              setRawEncoderAngles({ base: rawBase, shoulder: rawShoulder, elbow: rawElbow, wrist: rawWrist });
+            }
+            
+            // Motion state
+            if (data.moving !== undefined) {
+              setMotionState({
+                isMoving: data.moving,
+                targetReached: !data.moving,
+              });
+            }
           } else if (data.joints && Array.isArray(data.joints)) {
+            // Legacy feedback format
             addLog(`Feedback: [${data.joints.join(', ')}]`, 'info');
           } else if (data.log) {
             addLog(data.log, data.level || 'info');
+          } else if (data.type === 'zero_confirmed') {
+            addLog(`Zero set confirmed for ${data.joint}`, 'info');
           } else {
             addLog(`Received: ${event.data}`, 'info');
           }
@@ -197,9 +270,15 @@ export function useRobotConnection() {
     sendStop,
     resetStop,
     sendSettings,
+    sendSetZero,
+    sendMotionConfig,
+    sendInvertDirection,
     logs,
     clearLogs,
     isStopped,
     latency,
+    encoderAngles,
+    rawEncoderAngles,
+    motionState,
   };
 }

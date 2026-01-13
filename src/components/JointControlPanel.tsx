@@ -1,9 +1,11 @@
 import { Settings2 } from 'lucide-react';
 import { JointControl } from './JointControl';
-import { JointAngles, JOINT_CONFIGS } from '@/types/robot';
+import { JointAngles, JOINT_CONFIGS, PerJointLimits, JointKey } from '@/types/robot';
 
 interface JointControlPanelProps {
-  joints: JointAngles;
+  targetJoints: JointAngles;
+  encoderAngles: JointAngles;
+  jointLimits: PerJointLimits;
   onJointChange: (key: keyof JointAngles, value: number) => void;
   disabled?: boolean;
   enabledJoints?: {
@@ -12,9 +14,18 @@ interface JointControlPanelProps {
     elbow: boolean;
     wrist: boolean;
   };
+  isMoving?: boolean;
 }
 
-export function JointControlPanel({ joints, onJointChange, disabled, enabledJoints }: JointControlPanelProps) {
+export function JointControlPanel({ 
+  targetJoints, 
+  encoderAngles,
+  jointLimits,
+  onJointChange, 
+  disabled, 
+  enabledJoints,
+  isMoving
+}: JointControlPanelProps) {
   return (
     <div className="panel h-full flex flex-col">
       <div className="panel-header">
@@ -22,18 +33,40 @@ export function JointControlPanel({ joints, onJointChange, disabled, enabledJoin
           <Settings2 className="w-4 h-4 text-primary" />
           <span className="panel-title">Joint Controls</span>
         </div>
+        {isMoving && (
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-warning animate-pulse" />
+            <span className="text-xs text-warning">Moving</span>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 p-4 space-y-4 overflow-auto">
         {JOINT_CONFIGS.map((config) => {
-          const isJointDisabled = disabled || (enabledJoints && !enabledJoints[config.key]);
+          const joint = config.key as JointKey;
+          const isJointDisabled = disabled || (enabledJoints && !enabledJoints[joint]);
+          const limits = jointLimits[joint];
+          const encoderValue = encoderAngles[joint];
+          const targetValue = targetJoints[joint];
+          
+          // Check if at limits
+          const atMinLimit = encoderValue <= limits.min + 0.5;
+          const atMaxLimit = encoderValue >= limits.max - 0.5;
+          
           return (
-            <div key={config.key} className={enabledJoints && !enabledJoints[config.key] ? 'opacity-50' : ''}>
+            <div key={joint} className={enabledJoints && !enabledJoints[joint] ? 'opacity-50' : ''}>
               <JointControl
-                config={config}
-                value={joints[config.key]}
-                onChange={(value) => onJointChange(config.key, value)}
+                config={{
+                  ...config,
+                  min: limits.min,
+                  max: limits.max,
+                }}
+                targetValue={targetValue}
+                encoderValue={encoderValue}
+                onChange={(value) => onJointChange(joint, value)}
                 disabled={isJointDisabled}
+                atMinLimit={atMinLimit}
+                atMaxLimit={atMaxLimit}
               />
             </div>
           );
@@ -42,8 +75,8 @@ export function JointControlPanel({ joints, onJointChange, disabled, enabledJoin
 
       <div className="p-4 border-t border-border">
         <div className="text-xs text-muted-foreground">
-          <span className="font-medium">Tip:</span> Use jog buttons for precise control or drag sliders.
-          Values are sent to the robot controller at 20Hz max.
+          <span className="font-medium">Tip:</span> Sliders set target position. Readouts show actual encoder position.
+          Joint limits and controls configured in Settings tab.
         </div>
       </div>
     </div>
