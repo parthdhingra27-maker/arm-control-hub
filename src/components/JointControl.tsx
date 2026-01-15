@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { JointConfig } from '@/types/robot';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Minus, Plus, AlertTriangle } from 'lucide-react';
+import { Minus, Plus, AlertTriangle, Home } from 'lucide-react';
 
 interface JointControlProps {
   config: JointConfig;
@@ -154,6 +154,16 @@ export function JointControl({
             </Button>
           );
         })}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onChange(0)}
+          disabled={disabled || (0 < config.min || 0 > config.max)}
+          className="h-8 text-xs font-mono px-2"
+          title="Go to 0°"
+        >
+          <Home className="w-3 h-3" />
+        </Button>
       </div>
 
       <div className="relative">
